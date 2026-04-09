@@ -8,7 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+    env:
+      BUILD_LOGS: yes
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -21,42 +22,39 @@ jobs:
     - name: Install Buildozer dependencies (minimal)
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-            build-essential \
-            git \
-            python3 \
-            python3-dev \
-            python3-venv \
-            libffi-dev \
-            libssl-dev \
-            zlib1g-dev \
-            autoconf \
-            libtool \
-            pkg-config \
-            ncurses-dev \
-            cmake \
-            ccache
-        # 这些是可选依赖，不安装也能打包
+        sudo apt-get install -y             build-essential             git             python3             python3-dev             python3-venv             libffi-dev             libssl-dev             zlib1g-dev             autoconf             libtool             pkg-config             ncurses-dev             cmake             ccache             openjdk-17-jdk             unzip             wget             curl
         sudo apt-get clean
         sudo rm -rf /var/lib/apt/lists/*
     
     - name: Install Buildozer
       run: |
         pip install --upgrade pip
-        pip install buildozer cython
+        pip install --upgrade buildozer cython
     
-    - name: Cache Buildozer
+    - name: Cache Buildozer (cache Android NDK/SDK)
       uses: actions/cache@v4
       with:
-        path: .buildozer_cache
-        key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+        path: |
+          ~/.buildozer
+          .buildozer_cache
+        key: ${{ runner.os }}-buildozer-android-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          ${{ runner.os }}-buildozer-
+          ${{ runner.os }}-buildozer-android-
+    
+    - name: Configure buildozer for network stability
+      run: |
+        # 修改buildozer配置增加超时时间
+        mkdir -p ~/.buildozer
+        echo '[app]' > ~/.buildozer/buildozer.conf
+        echo 'network.timeout = 300' >> ~/.buildozer/buildozer.conf
+        echo 'network.retry = 3' >> ~/.buildozer/buildozer.conf
     
     - name: Build APK
       run: |
+        # 增加超时时间，重试下载
         buildozer android debug
       continue-on-error: false
+      timeout-minutes: 60
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
